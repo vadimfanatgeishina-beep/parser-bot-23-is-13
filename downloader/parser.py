@@ -184,10 +184,8 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
                 "extract_info attempt %d failed for %s: %s",
                 attempt, url, e,
             )
-            # Don't retry on non-network errors
-            err_text = str(e).lower()
-            if "sign in" in err_text or "confirm your age" in err_text:
-                raise
+            # YouTube login/age challenges can vary by player client. Keep
+            # trying the alternate clients before returning the final error.
 
     logger.error("extract_info failed for %s after %d attempts", url, len(strategies))
     raise last_error or RuntimeError("extract_info failed")
