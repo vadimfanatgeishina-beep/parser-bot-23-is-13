@@ -65,7 +65,7 @@ jobs:
               def error(self, message):
                   self.messages.append(str(message).lower())
 
-          for client in ("mweb", "web_safari", "tv", "android", "ios", "default", "web", "web_embedded", "web_music", "web_creator", "android_vr"):
+          for client in ("mweb", "web_safari", "tv", "tv_downgraded", "android", "ios", "default", "web", "web_embedded", "web_music", "web_creator", "android_vr"):
               safe_logger = SafeLogger()
               opts = {
                   "quiet": True,
