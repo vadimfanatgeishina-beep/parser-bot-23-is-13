@@ -9,9 +9,11 @@ Provides async functions to:
 - Get playlist information
 """
 import asyncio
+import atexit
 import logging
 import os
 from pathlib import Path
+import tempfile
 from typing import Any
 
 import yt_dlp
@@ -20,6 +22,36 @@ from config import config
 from utils.progress import DownloadProgress
 
 logger = logging.getLogger(__name__)
+
+_YOUTUBE_COOKIE_FILE: str | None = None
+
+
+def _youtube_cookie_file() -> str | None:
+    """Materialize optional YouTube cookies from the YOUTUBE_COOKIES secret."""
+    global _YOUTUBE_COOKIE_FILE
+    cookie_text = os.getenv("YOUTUBE_COOKIES", "").strip()
+    if not cookie_text:
+        return None
+    if _YOUTUBE_COOKIE_FILE:
+        return _YOUTUBE_COOKIE_FILE
+
+    fd, cookie_path = tempfile.mkstemp(prefix="parser-bot-youtube-", suffix=".cookies")
+    try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as cookie_file:
+            cookie_file.write(cookie_text + "\n")
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        Path(cookie_path).unlink(missing_ok=True)
+        raise
+
+    _YOUTUBE_COOKIE_FILE = cookie_path
+    atexit.register(lambda: Path(cookie_path).unlink(missing_ok=True))
+    return cookie_path
 
 
 DEFAULT_USER_AGENT = (
@@ -65,6 +97,9 @@ def _build_ydl_opts(
             },
         },
     }
+    cookie_file = _youtube_cookie_file()
+    if cookie_file:
+        opts["cookiefile"] = cookie_file
     # Drop None proxy to avoid yt-dlp falling back to env vars
     if not opts["proxy"]:
         opts.pop("proxy", None)

@@ -32,6 +32,7 @@ jobs:
       - name: Run bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           PROXY_URL: ""
           USE_LOCAL_BOT_API: "false"
           PORT: "8000"
