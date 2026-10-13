@@ -55,33 +55,54 @@ jobs:
 
           print(f"yt_dlp_version={yt_dlp.version.__version__}")
           print(f"cookies_configured={bool(cookie_path)}")
-          for client in ("mweb", "web_safari", "web"):
-              for user_agent in (None, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"):
-                  opts = {
-                      "quiet": True,
-                      "socket_timeout": 25,
-                      "extractor_args": {
-                          "youtube": {"player_client": [client], "skip": ["translated_subs"]}
-                      },
-                  }
-                  if user_agent:
-                      opts["user_agent"] = user_agent
-                  if cookie_path:
-                      opts["cookiefile"] = cookie_path
-                  label = "yt_dlp_default_ua" if user_agent is None else "forced_chrome_120"
-                  try:
-                      with yt_dlp.YoutubeDL(opts) as ydl:
-                          info = ydl.extract_info(
-                              f"https://www.youtube.com/watch?v={video_id}", download=False
-                          )
-                      formats = info.get("formats") or []
-                      summary = ",".join(
-                          f"{f.get('format_id')}:{f.get('height') or 'audio'}:{f.get('ext')}"
-                          for f in formats[:8]
+          class SafeLogger:
+              def __init__(self):
+                  self.messages = []
+              def debug(self, message):
+                  self.messages.append(str(message).lower())
+              def warning(self, message):
+                  self.messages.append(str(message).lower())
+              def error(self, message):
+                  self.messages.append(str(message).lower())
+
+          for client in ("mweb", "web_safari", "tv", "android", "ios", "default", "web", "web_embedded"):
+              safe_logger = SafeLogger()
+              opts = {
+                  "quiet": True,
+                  "verbose": True,
+                  "logger": safe_logger,
+                  "ignore_no_formats_error": True,
+                  "socket_timeout": 25,
+                  "extractor_args": {
+                      "youtube": {"player_client": [client], "skip": ["translated_subs"]}
+                  },
+              }
+              if cookie_path:
+                  opts["cookiefile"] = cookie_path
+              try:
+                  with yt_dlp.YoutubeDL(opts) as ydl:
+                      info = ydl.extract_info(
+                          f"https://www.youtube.com/watch?v={video_id}", download=False
                       )
-                      print(f"client={client} ua={label} formats={len(formats)} sample={summary or 'none'}")
-                  except Exception as e:
-                      print(f"client={client} ua={label} error={type(e).__name__}: {str(e)[:240]}")
+                  formats = info.get("formats") or []
+                  summary = ",".join(
+                      f"{f.get('format_id')}:{f.get('height') or 'audio'}:{f.get('ext')}"
+                      for f in formats[:8]
+                  )
+                  outcome = f"formats={len(formats)} sample={summary or 'none'}"
+              except Exception as e:
+                  outcome = f"error={type(e).__name__}: {str(e)[:180]}"
+
+              messages = safe_logger.messages
+              providers_loaded = any("po token providers:" in message for message in messages)
+              token_requested = any("generating a" in message and "po token" in message for message in messages)
+              cookie_recognized = any("account cookies" in message for message in messages)
+              sign_in_challenge = any("sign in to confirm" in message or "login_required" in message for message in messages)
+              print(
+                  f"client={client} {outcome} po_provider_loaded={providers_loaded} "
+                  f"po_token_requested={token_requested} account_cookies_recognized={cookie_recognized} "
+                  f"sign_in_challenge={sign_in_challenge}"
+              )
 
           if cookie_path:
               Path(cookie_path).unlink(missing_ok=True)
