@@ -160,7 +160,7 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
     strategies = [_extract]
 
     fallback_clients = (
-        [["web_safari"], ["tv"], ["web"]]
+        [["web_embedded"], ["web_safari"], ["tv_downgraded"], ["tv"], ["web"]]
         if _youtube_cookie_file()
         else [["android"], ["ios"], ["tv_embedded"], ["web_safari"]]
     )
