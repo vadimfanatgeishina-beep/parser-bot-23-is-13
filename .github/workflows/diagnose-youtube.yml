@@ -65,13 +65,14 @@ jobs:
               def error(self, message):
                   self.messages.append(str(message).lower())
 
-          for client in ("mweb", "web_safari", "tv", "tv_downgraded", "android", "ios", "default", "web", "web_embedded", "web_music", "web_creator", "android_vr"):
+          for client in ("mweb", "tv_downgraded", "web_embedded"):
               safe_logger = SafeLogger()
               opts = {
                   "quiet": True,
                   "verbose": True,
                   "logger": safe_logger,
                   "ignore_no_formats_error": True,
+                  "js_runtimes": {"node": {}},
                   "socket_timeout": 25,
                   "extractor_args": {
                       "youtube": {"player_client": [client], "skip": ["translated_subs"]}

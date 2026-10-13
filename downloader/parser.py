@@ -92,6 +92,10 @@ def _build_ydl_opts(
         "no_check_certificate": True,
         "source_address": "0.0.0.0",
         "socket_timeout": 30,
+        # GitHub Actions installs Node.js, but yt-dlp only enables Deno by
+        # default. YouTube's JS signature and n-challenge solving needs an
+        # explicitly enabled runtime or only storyboard formats may remain.
+        "js_runtimes": {"node": {}},
         # Present ourselves as a regular browser to avoid YouTube anti-bot detection
         "user_agent": DEFAULT_USER_AGENT,
         # The mweb client is supported by the configured PO-token provider.
