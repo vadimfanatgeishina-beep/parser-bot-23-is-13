@@ -89,10 +89,10 @@ def _build_ydl_opts(
         "socket_timeout": 30,
         # Present ourselves as a regular browser to avoid YouTube anti-bot detection
         "user_agent": DEFAULT_USER_AGENT,
-        # Some videos only resolve via alternative clients; try them as fallback
+        # mweb lets the bgutil provider supply YouTube's proof-of-origin token.
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "ios", "android", "tv"],
+                "player_client": ["mweb", "web_safari", "tv"],
                 "skip": ["translated_subs"],
             },
         },
@@ -148,11 +148,10 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=False)
 
-    # Try primary strategy (with proxy + web client); fall back to alternative
-    # strategies if the YouTube extractor fails (SSL, EOF, 403, etc.).
+    # Try the PO-token-enabled mweb client first, then alternate clients.
     strategies = [_extract]
 
-    fallback_clients = [["ios"], ["android"], ["tv_embedded"]]
+    fallback_clients = [["web_safari"], ["tv"], ["ios"], ["android"], ["tv_embedded"]]
     for clients in fallback_clients:
         def _make_fallback(_clients=clients):
             alt_opts = dict(opts)
