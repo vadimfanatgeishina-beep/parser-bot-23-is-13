@@ -69,10 +69,10 @@ def _build_ydl_opts(
 ) -> dict:
     """Build base yt-dlp options dict."""
     cookie_file = _youtube_cookie_file()
-    # Keep the same client mix as the original local project. When cookies are
-    # configured, android is also tried first because YouTube's web embedded
-    # client can return no downloadable formats.
-    player_clients = ["android"] if cookie_file else ["web", "ios", "android", "tv"]
+    # Preserve the original local-project clients when unauthenticated. With
+    # account cookies, use mweb so the installed PO-token provider can supply
+    # the token required for video formats.
+    player_clients = ["mweb"] if cookie_file else ["web", "ios", "android", "tv"]
     opts: dict[str, Any] = {
         "noplaylist": True,
         "quiet": True,
@@ -94,9 +94,7 @@ def _build_ydl_opts(
         "socket_timeout": 30,
         # Present ourselves as a regular browser to avoid YouTube anti-bot detection
         "user_agent": DEFAULT_USER_AGENT,
-        # Match the player clients used by the original local project. The
-        # android client is tried alone with cookies to avoid web_embedded's
-        # empty format list on affected videos.
+        # The mweb client is supported by the configured PO-token provider.
         "extractor_args": {
             "youtube": {
                 "player_client": player_clients,
@@ -158,7 +156,7 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
     strategies = [_extract]
 
     fallback_clients = (
-        [["web_safari"], ["ios"], ["tv_embedded"], ["web_embedded"]]
+        [["web_safari"], ["tv"], ["web"]]
         if _youtube_cookie_file()
         else [["android"], ["ios"], ["tv_embedded"], ["web_safari"]]
     )
@@ -182,20 +180,37 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
 
     last_error: Exception | None = None
     for attempt, fn in enumerate(strategies, start=1):
-        try:
-            info = await _run_sync(fn)
-            if info:
-                if attempt > 1:
-                    logger.info("extract_info succeeded on attempt %d for %s", attempt, url)
-                return info or {}
-        except Exception as e:
-            last_error = e
-            logger.warning(
-                "extract_info attempt %d failed for %s: %s",
-                attempt, url, e,
-            )
-            # YouTube login/age challenges can vary by player client. Keep
-            # trying the alternate clients before returning the final error.
+        for retry in range(2):
+            try:
+                info = await _run_sync(fn)
+                if info:
+                    if attempt > 1 or retry > 0:
+                        logger.info(
+                            "extract_info succeeded on attempt %d retry %d for %s",
+                            attempt, retry + 1, url,
+                        )
+                    return info or {}
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "extract_info attempt %d retry %d failed for %s: %s",
+                    attempt, retry + 1, url, e,
+                )
+                # YouTube can intermittently omit all media formats from an
+                # otherwise identical response. Retry that same client once
+                # after a short pause, then continue to the next client.
+                err_text = str(e).lower()
+                transient_format_error = any(
+                    marker in err_text
+                    for marker in (
+                        "requested format is not available",
+                        "the page needs to be reloaded",
+                    )
+                )
+                if retry == 0 and transient_format_error:
+                    await asyncio.sleep(2)
+                    continue
+                break
 
     logger.error("extract_info failed for %s after %d attempts", url, len(strategies))
     raise last_error or RuntimeError("extract_info failed")
