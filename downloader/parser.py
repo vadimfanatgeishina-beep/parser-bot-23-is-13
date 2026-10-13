@@ -69,9 +69,10 @@ def _build_ydl_opts(
 ) -> dict:
     """Build base yt-dlp options dict."""
     cookie_file = _youtube_cookie_file()
-    player_clients = (
-        ["default", "web_embedded"] if cookie_file else ["mweb", "web_safari", "tv"]
-    )
+    # Keep the same client mix as the original local project. When cookies are
+    # configured, android is also tried first because YouTube's web embedded
+    # client can return no downloadable formats.
+    player_clients = ["android"] if cookie_file else ["web", "ios", "android", "tv"]
     opts: dict[str, Any] = {
         "noplaylist": True,
         "quiet": True,
@@ -93,8 +94,9 @@ def _build_ydl_opts(
         "socket_timeout": 30,
         # Present ourselves as a regular browser to avoid YouTube anti-bot detection
         "user_agent": DEFAULT_USER_AGENT,
-        # YouTube's tv_downgraded client currently fails with cookies; use the
-        # upstream-recommended default + embedded clients in that case.
+        # Match the player clients used by the original local project. The
+        # android client is tried alone with cookies to avoid web_embedded's
+        # empty format list on affected videos.
         "extractor_args": {
             "youtube": {
                 "player_client": player_clients,
@@ -155,9 +157,11 @@ async def extract_info(url: str, *, playlist: bool = False) -> dict:
     # Try the PO-token-enabled mweb client first, then alternate clients.
     strategies = [_extract]
 
-    fallback_clients = [
-        ["web_embedded"], ["web_safari"], ["tv"], ["ios"], ["android"], ["tv_embedded"]
-    ]
+    fallback_clients = (
+        [["web_safari"], ["ios"], ["tv_embedded"], ["web_embedded"]]
+        if _youtube_cookie_file()
+        else [["android"], ["ios"], ["tv_embedded"], ["web_safari"]]
+    )
     for clients in fallback_clients:
         def _make_fallback(_clients=clients):
             alt_opts = dict(opts)
